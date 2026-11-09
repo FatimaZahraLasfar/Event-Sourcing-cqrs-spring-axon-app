@@ -3,11 +3,10 @@ package org.fzl.eventcqrsaxonapp.commands.controllers;
 import org.axonframework.messaging.commandhandling.gateway.CommandGateway;
 import org.fzl.eventcqrsaxonapp.commands.commands.AddAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.dtos.AddNewAccountRequestDTO;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,5 +33,9 @@ public class AccountCommandController {
                 ),
                 String.class
         );
+    }
+    @ExceptionHandler(Exception.class)
+    public String handle(Exception exception) {
+        return exception.getMessage();
     }
 }
