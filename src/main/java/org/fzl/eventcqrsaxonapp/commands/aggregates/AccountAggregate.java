@@ -16,7 +16,6 @@ import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
 @EventSourced
 @Slf4j
 public class AccountAggregate {
-
     private String accountId;
     private double balance;
     private AccountStatus status;
@@ -29,7 +28,7 @@ public class AccountAggregate {
 
     // Handle AddAccountCommand
     @CommandHandler
-    public static AccountAggregate handle(
+    public static String handle(
             AddAccountCommand command,
             EventAppender eventAppender) {
 
@@ -38,16 +37,11 @@ public class AccountAggregate {
         log.info("Initial Balance: {}", command.getInitialBalance());
         log.info("Currency: {}", command.getCurrency());
 
-        // Validate initial balance
         if (command.getInitialBalance() <= 0) {
             log.error("Account creation FAILED: Initial balance must be positive");
-
-            throw new IllegalArgumentException(
-                    "Balance must be positive"
-            );
+            throw new IllegalArgumentException("Balance must be positive");
         }
 
-        // Create AccountCreatedEvent
         AccountCreatedEvent event = new AccountCreatedEvent(
                 command.getId(),
                 command.getInitialBalance(),
@@ -55,12 +49,11 @@ public class AccountAggregate {
                 command.getCurrency()
         );
 
-        // Append event
         eventAppender.append(event);
 
         log.info("############ AccountCreatedEvent APPENDED ############");
 
-        return new AccountAggregate();
+        return command.getId();
     }
 
     // Handle AccountCreatedEvent
