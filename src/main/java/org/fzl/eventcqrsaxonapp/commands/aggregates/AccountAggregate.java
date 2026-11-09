@@ -1,4 +1,7 @@
+
 package org.fzl.eventcqrsaxonapp.commands.aggregates;
+
+import lombok.extern.slf4j.Slf4j;
 
 import org.axonframework.extension.spring.stereotype.EventSourced;
 import org.axonframework.messaging.commandhandling.annotation.CommandHandler;
@@ -11,43 +14,71 @@ import org.fzl.eventcqrsaxonapp.commands.enums.AccountStatus;
 import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
 
 @EventSourced
+@Slf4j
 public class AccountAggregate {
 
     private String accountId;
     private double balance;
     private AccountStatus status;
+    private String currency;
 
+    // Constructor used by Axon
     @EntityCreator
     public AccountAggregate() {
     }
 
+    // Handle AddAccountCommand
     @CommandHandler
     public static AccountAggregate handle(
             AddAccountCommand command,
             EventAppender eventAppender) {
 
+        log.info("############ AddAccountCommand RECEIVED ############");
+        log.info("Account ID: {}", command.getId());
+        log.info("Initial Balance: {}", command.getInitialBalance());
+        log.info("Currency: {}", command.getCurrency());
+
+        // Validate initial balance
         if (command.getInitialBalance() <= 0) {
+            log.error("Account creation FAILED: Initial balance must be positive");
+
             throw new IllegalArgumentException(
                     "Balance must be positive"
             );
         }
 
-        eventAppender.append(
-                new AccountCreatedEvent(
-                        command.getId(),
-                        command.getInitialBalance(),
-                        AccountStatus.CREATED,
-                        command.getCurrency()
-                )
+        // Create AccountCreatedEvent
+        AccountCreatedEvent event = new AccountCreatedEvent(
+                command.getId(),
+                command.getInitialBalance(),
+                AccountStatus.CREATED,
+                command.getCurrency()
         );
+
+        // Append event
+        eventAppender.append(event);
+
+        log.info("############ AccountCreatedEvent APPENDED ############");
 
         return new AccountAggregate();
     }
 
+    // Handle AccountCreatedEvent
     @EventSourcingHandler
     public void on(AccountCreatedEvent event) {
+
+        log.info("############ AccountCreatedEvent OCCURRED ############");
+        log.info("Account ID: {}", event.getAccountId());
+        log.info("Initial Balance: {}", event.getInitialBalance());
+        log.info("Status: {}", event.getStatus());
+        log.info("Currency: {}", event.getCurrency());
+
+        // Update aggregate state
         this.accountId = event.getAccountId();
         this.balance = event.getInitialBalance();
         this.status = event.getStatus();
+        this.currency = event.getCurrency();
+
+        log.info("AccountAggregate state UPDATED successfully");
     }
 }
