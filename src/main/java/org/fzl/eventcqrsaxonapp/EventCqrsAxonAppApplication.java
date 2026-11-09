@@ -9,5 +9,4 @@ public class EventCqrsAxonAppApplication {
     public static void main(String[] args) {
         SpringApplication.run(EventCqrsAxonAppApplication.class, args);
     }
-
 }
