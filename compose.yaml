@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: 'postgres:17'
+    environment:
+      - 'POSTGRES_DB=es-accounts_db'
+      - 'POSTGRES_PASSWORD=1234'
+      - 'POSTGRES_USER=admin'
+    volumes:
+      - es-accounts_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - es-accounts-net
+  pgadmin4:
+    image: dpage/pgadmin4
+    restart: always
+    ports:
+      - "8088:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: fatyz@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: fzl22
+    volumes:
+      - es-accounts_pgadmin_data:/var/lib/pgadmin
+    networks:
+      - es-accounts-net
+volumes:
+  es-accounts_data:
+  es-accounts_pgadmin_data:
+
+networks:
+  es-accounts-net:
+    driver: bridge
