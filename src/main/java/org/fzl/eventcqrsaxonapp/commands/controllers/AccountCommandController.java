@@ -1,25 +1,33 @@
 package org.fzl.eventcqrsaxonapp.commands.controllers;
 
 import org.axonframework.eventsourcing.eventstore.EventStore;
-import org.axonframework.messaging.commandhandling.gateway.CommandGateway;
-import org.axonframework.messaging.core.MessageStreamUtils;
-import org.axonframework.messaging.eventstreaming.StreamingCondition;
 import org.axonframework.eventsourcing.eventstore.EventStoreTransaction;
 import org.axonframework.eventsourcing.eventstore.SourcingCondition;
+
+import org.axonframework.messaging.commandhandling.gateway.CommandGateway;
+import org.axonframework.messaging.core.MessageStreamUtils;
+import org.axonframework.messaging.core.unitofwork.UnitOfWorkFactory;
 import org.axonframework.messaging.eventstreaming.EventCriteria;
-import org.axonframework.messaging.eventstreaming.Tag;
-import org.axonframework.messaging.core.unitofwork.UnitOfWork;
+
 import org.fzl.eventcqrsaxonapp.commands.commands.AddAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.commands.CreditAccountCommand;
+
+import org.fzl.eventcqrsaxonapp.commands.commands.DebitAccountCommand;
+import org.fzl.eventcqrsaxonapp.commands.commands.UpdateAccountStatusCommand;
 import org.fzl.eventcqrsaxonapp.commands.dtos.AddNewAccountRequestDTO;
 import org.fzl.eventcqrsaxonapp.commands.dtos.CreditAccountRequestDTO;
-import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
-import org.axonframework.messaging.core.unitofwork.UnitOfWorkFactory;
+
+import java.util.Map;
+
+import org.fzl.eventcqrsaxonapp.commands.dtos.DebitAccountRequestDTO;
+import org.fzl.eventcqrsaxonapp.commands.dtos.UpdateAccountRequestDTO;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/commands/accounts")
 public class AccountCommandController {
@@ -30,37 +38,46 @@ public class AccountCommandController {
 
     public AccountCommandController(
             CommandGateway commandGateway,
-            EventStore eventStore, UnitOfWorkFactory unitOfWorkFactory
+            EventStore eventStore,
+            UnitOfWorkFactory unitOfWorkFactory
     ) {
         this.commandGateway = commandGateway;
         this.eventStore = eventStore;
         this.unitOfWorkFactory = unitOfWorkFactory;
     }
 
+    // ==========================================
+    // CREATE ACCOUNT
+    // ==========================================
+
     @PostMapping("/add")
     public CompletableFuture<String> addNewAccount(
             @RequestBody AddNewAccountRequestDTO request
     ) {
+
         String accountId = UUID.randomUUID().toString();
 
-        System.out.println("POST REQUEST RECEIVED");
+        System.out.println("========== ADD ACCOUNT ==========");
         System.out.println("Generated Account ID: " + accountId);
 
-        return commandGateway.send(
-                new AddAccountCommand(
-                        accountId,
-                        request.initialBalance(),
-                        request.currency()
-                ),
-                String.class
+        AddAccountCommand command = new AddAccountCommand(
+                accountId,
+                request.initialBalance(),
+                request.currency()
         );
+
+        return commandGateway.send(command, String.class);
     }
 
+    // ==========================================
+    // GET ACCOUNT EVENTS
+    // ==========================================
 
     @GetMapping("/events/{accountId}")
-    public CompletableFuture<List<AccountCreatedEvent>> getAccountEvents(
+    public CompletableFuture<List<Map<?, ?>>> getAccountEvents(
             @PathVariable String accountId
     ) {
+
         System.out.println("========== GET EVENTS ==========");
         System.out.println("Account ID: " + accountId);
 
@@ -72,8 +89,6 @@ public class AccountCommandController {
 
         return unitOfWorkFactory.create().executeWithResult(context -> {
 
-            System.out.println("ProcessingContext created successfully");
-
             EventStoreTransaction transaction =
                     eventStore.transaction(context);
 
@@ -81,44 +96,75 @@ public class AccountCommandController {
 
             return MessageStreamUtils.reduce(
                     stream,
-                    new ArrayList<AccountCreatedEvent>(),
+                    new ArrayList<Map<?, ?>>(),
                     (events, entry) -> {
 
-                        System.out.println("========== EVENT RECEIVED ==========");
-
-                        AccountCreatedEvent event =
-                                entry.message().payloadAs(AccountCreatedEvent.class);
+                        Map<?, ?> event =
+                                entry.message().payloadAs(Map.class);
 
                         if (event != null) {
-                            System.out.println("EVENT DESERIALIZED SUCCESSFULLY");
-                            System.out.println("Account ID: " + event.getAccountId());
-
+                            System.out.println("Retrieved event: " + event);
                             events.add(event);
                         }
-
-                        System.out.println("Events collected: " + events.size());
 
                         return events;
                     }
             );
         });
     }
+
+    // ==========================================
+    // CREDIT ACCOUNT
+    // ==========================================
+
     @PostMapping("/credit")
-    public CompletableFuture<String> creditAccount(
+    public CompletableFuture<Void> creditAccount(
             @RequestBody CreditAccountRequestDTO request) {
 
-        return commandGateway.send(
-                new CreditAccountCommand(
-                        request.accountId(),
-                        request.amount(),
-                        request.currency()
-                ),
-                String.class
+        CreditAccountCommand command = new CreditAccountCommand(
+                request.accountId(),
+                request.amount(),
+                request.currency()
         );
+
+        return commandGateway.send(command, Void.class);
     }
+    // ==========================================
+    // DEBIT ACCOUNT
+    // ==========================================
+
+    @PostMapping("/debit")
+    public CompletableFuture<Void> debitAccount(
+            @RequestBody DebitAccountRequestDTO request) {
+
+        DebitAccountCommand command = new DebitAccountCommand(
+                request.accountId(),
+                request.amount(),
+                request.currency()
+        );
+
+        return commandGateway.send(command, Void.class);
+    }
+    @PutMapping("/updateStatus")
+    public CompletableFuture<Void> updateStatus(
+            @RequestBody UpdateAccountRequestDTO request) {
+
+        UpdateAccountStatusCommand command = new UpdateAccountStatusCommand(
+                request.accountId(),
+                request.status()
+
+        );
+
+        return commandGateway.send(command, Void.class);
+    }
+
+    // ==========================================
+    // EXCEPTION HANDLER
+    // ==========================================
 
     @ExceptionHandler(Exception.class)
     public String handle(Exception exception) {
+
         return exception.getMessage();
     }
 }

@@ -1,4 +1,3 @@
-
 package org.fzl.eventcqrsaxonapp.commands.aggregates;
 
 import lombok.extern.slf4j.Slf4j;
@@ -11,28 +10,36 @@ import org.axonframework.messaging.eventhandling.gateway.EventAppender;
 
 import org.fzl.eventcqrsaxonapp.commands.commands.AddAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.commands.CreditAccountCommand;
+import org.fzl.eventcqrsaxonapp.commands.commands.DebitAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.enums.AccountStatus;
+
+import org.fzl.eventcqrsaxonapp.events.AccountActivatedEvent;
 import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
 import org.fzl.eventcqrsaxonapp.events.AccountCreditedEvent;
+import org.fzl.eventcqrsaxonapp.events.AccountDebitedEvent;
 
 @EventSourced(tagKey = "accountId")
 @Slf4j
 public class AccountAggregate {
+
     private String accountId;
     private double balance;
     private AccountStatus status;
     private String currency;
 
-    // Constructor used by Axon
     @EntityCreator
     public AccountAggregate() {
     }
 
-    // Handle AddAccountCommand
+    // ==========================================
+    // CREATE ACCOUNT
+    // ==========================================
+
     @CommandHandler
     public static String handle(
             AddAccountCommand command,
-            EventAppender eventAppender) {
+            EventAppender eventAppender
+    ) {
 
         log.info("############ AddAccountCommand RECEIVED ############");
         log.info("Account ID: {}", command.getId());
@@ -40,83 +47,192 @@ public class AccountAggregate {
         log.info("Currency: {}", command.getCurrency());
 
         if (command.getInitialBalance() <= 0) {
-            log.error("Account creation FAILED: Initial balance must be positive");
-            throw new IllegalArgumentException("Balance must be positive");
+            throw new IllegalArgumentException(
+                    "Initial balance must be positive"
+            );
         }
 
-        AccountCreatedEvent event = new AccountCreatedEvent(
+        AccountCreatedEvent createdEvent = new AccountCreatedEvent(
                 command.getId(),
                 command.getInitialBalance(),
                 AccountStatus.CREATED,
                 command.getCurrency()
         );
 
-        eventAppender.append(event);
+        AccountActivatedEvent activatedEvent = new AccountActivatedEvent(
+                command.getId(),
+                AccountStatus.ACTIVATED
+        );
 
-        log.info("############ AccountCreatedEvent APPENDED ############");
+        eventAppender.append(createdEvent);
+        eventAppender.append(activatedEvent);
+
+        log.info("AccountCreatedEvent and AccountActivatedEvent APPENDED");
 
         return command.getId();
     }
 
-    // Handle AccountCreatedEvent
+    // ==========================================
+    // ACCOUNT CREATED EVENT
+    // ==========================================
+
     @EventSourcingHandler
     public void on(AccountCreatedEvent event) {
 
         log.info("############ AccountCreatedEvent OCCURRED ############");
-        log.info("Account ID: {}", event.getAccountId());
-        log.info("Initial Balance: {}", event.getInitialBalance());
-        log.info("Status: {}", event.getStatus());
-        log.info("Currency: {}", event.getCurrency());
 
-        // Update aggregate state
         this.accountId = event.getAccountId();
         this.balance = event.getInitialBalance();
         this.status = event.getStatus();
         this.currency = event.getCurrency();
 
-        log.info("AccountAggregate state UPDATED successfully");
+        log.info("AccountAggregate initialized successfully");
     }
 
-    // Handle CreateAccountCommand
+    // ==========================================
+    // ACCOUNT ACTIVATED EVENT
+    // ==========================================
+
+    @EventSourcingHandler
+    public void on(AccountActivatedEvent event) {
+
+        log.info("############ AccountActivatedEvent OCCURRED ############");
+
+        this.accountId = event.getAccountId();
+        this.status = event.getStatus();
+
+        log.info("Account {} is now {}", accountId, status);
+    }
+
+    // ==========================================
+    // CREDIT ACCOUNT COMMAND
+    // ==========================================
+
     @CommandHandler
-    public void  handle(
+    public void handle(
             CreditAccountCommand command,
-            EventAppender eventAppender) {
+            EventAppender eventAppender
+    ) {
 
         log.info("############ CreditAccountCommand RECEIVED ############");
-//        log.info("Account ID: {}", command.getId());
-//        log.info("Initial Balance: {}", command.getInitialBalance());
-//        log.info("Currency: {}", command.getCurrency());
-        if(!status.equals(AccountStatus.ACTIVATED)) throw new RuntimeException("The account "+command.getId() + " is not activated");
-        if (command.getAmount() <= 0) {
-            log.error("Account creation FAILED: Initial balance must be positive");
-            throw new IllegalArgumentException("Amount must be positive");
+        log.info("Account ID: {}", command.getId());
+        log.info("Amount: {}", command.getAmount());
+        log.info("Currency: {}", command.getCurrency());
+
+        // Check account status
+        if (status != AccountStatus.ACTIVATED) {
+            throw new IllegalStateException(
+                    "The account " + command.getId() + " is not activated"
+            );
         }
 
-        AccountCreditedEvent event = new AccountCreditedEvent(
+        // Check amount
+        if (command.getAmount() <= 0) {
+            throw new IllegalArgumentException(
+                    "Credit amount must be positive"
+            );
+        }
+
+        // Check currency
+        if (!currency.equalsIgnoreCase(command.getCurrency())) {
+            throw new IllegalArgumentException(
+                    "Currency does not match the account currency"
+            );
+        }
+
+        AccountCreditedEvent creditedEvent = new AccountCreditedEvent(
                 command.getId(),
                 command.getAmount(),
                 command.getCurrency()
         );
 
-        eventAppender.append(event);
+        eventAppender.append(creditedEvent);
 
-        log.info("############ AccountCreatedEvent APPENDED ############");
+        log.info("############ AccountCreditedEvent APPENDED ############");
     }
 
-    // Handle AccountCreditedEvent
+    // ==========================================
+    // ACCOUNT CREDITED EVENT
+    // ==========================================
+
     @EventSourcingHandler
     public void on(AccountCreditedEvent event) {
 
         log.info("############ AccountCreditedEvent OCCURRED ############");
-        log.info("Account ID: {}", event.getAccountId());
-        log.info("Amount: {}", event.getAmount());
-        log.info("Currency: {}", event.getCurrency());
 
-        // Update aggregate state
         this.accountId = event.getAccountId();
-        this.balance = this.balance + event.getAmount();
-        this.currency = event.getCurrency();
+        this.balance += event.getAmount();
+
+        log.info("Account ID: {}", accountId);
+        log.info("Credited amount: {}", event.getAmount());
+        log.info("New balance: {}", balance);
     }
 
+// ==========================================
+    // DEBIT ACCOUNT COMMAND
+    // ==========================================
+
+    @CommandHandler
+    public void handle(
+            DebitAccountCommand command,
+            EventAppender eventAppender
+    ) {
+
+        log.info("############ DebitAccountCommand RECEIVED ############");
+        log.info("Account ID: {}", command.getId());
+        log.info("Amount: {}", command.getAmount());
+        log.info("Currency: {}", command.getCurrency());
+
+        // Check account status
+        if (status != AccountStatus.ACTIVATED) {
+            throw new IllegalStateException(
+                    "The account " + command.getId() + " is not activated"
+            );
+        }
+        if (balance < command.getAmount()) {
+            throw new RuntimeException(
+                    "The balance is not sufficient Exception"
+            );
+        }
+        // Check amount
+        if (command.getAmount() <= 0) {
+            throw new IllegalArgumentException(
+                    "Credit amount must be positive"
+            );
+        }
+
+        // Check currency
+        if (!currency.equalsIgnoreCase(command.getCurrency())) {
+            throw new IllegalArgumentException(
+                    "Currency does not match the account currency"
+            );
+        }
+
+        AccountDebitedEvent creditedEvent = new AccountDebitedEvent(
+                command.getId(),
+                command.getAmount(),
+                command.getCurrency()
+        );
+
+        eventAppender.append(creditedEvent);
+
+        log.info("############ AccountCreditedEvent APPENDED ############");
+    }
+
+    // ==========================================
+    // ACCOUNT DEBITED EVENT
+    // ==========================================
+
+    @EventSourcingHandler
+    public void on(AccountDebitedEvent event) {
+
+        log.info("############ AccountDebitedEvent OCCURRED ############");
+
+        this.accountId = event.getAccountId();
+        this.balance -= event.getAmount();
+
+        log.info("Account ID: {}", accountId);
+        log.info("Credited amount: {}", event.getAmount());
+        log.info("New balance: {}", balance);
+    }
 }
