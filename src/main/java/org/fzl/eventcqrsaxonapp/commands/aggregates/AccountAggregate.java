@@ -11,12 +11,10 @@ import org.axonframework.messaging.eventhandling.gateway.EventAppender;
 import org.fzl.eventcqrsaxonapp.commands.commands.AddAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.commands.CreditAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.commands.DebitAccountCommand;
+import org.fzl.eventcqrsaxonapp.commands.commands.UpdateAccountStatusCommand;
 import org.fzl.eventcqrsaxonapp.commands.enums.AccountStatus;
 
-import org.fzl.eventcqrsaxonapp.events.AccountActivatedEvent;
-import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
-import org.fzl.eventcqrsaxonapp.events.AccountCreditedEvent;
-import org.fzl.eventcqrsaxonapp.events.AccountDebitedEvent;
+import org.fzl.eventcqrsaxonapp.events.*;
 
 @EventSourced(tagKey = "accountId")
 @Slf4j
@@ -234,5 +232,51 @@ public class AccountAggregate {
         log.info("Account ID: {}", accountId);
         log.info("Credited amount: {}", event.getAmount());
         log.info("New balance: {}", balance);
+    }
+
+    // ==========================================
+    // UPDATE ACCOUNT STATUS COMMAND
+    // ==========================================
+
+    @CommandHandler
+    public void handle(
+            UpdateAccountStatusCommand command,
+            EventAppender eventAppender
+    ) {
+
+        log.info("############ DebitAccountCommand RECEIVED ############");
+        log.info("Account ID: {}", command.getId());
+        log.info("Status: {}", command.getStatus());
+
+        // Check account status
+        if (command.getStatus() == status) {
+            throw new RuntimeException(
+                    "This account is already in : "+command.getStatus()
+            );
+        }
+        AccountStatusUpdatedEvent updateStatus = new AccountStatusUpdatedEvent(
+                command.getId(),
+                command.getStatus()
+        );
+
+        eventAppender.append(updateStatus);
+
+        log.info("############ AccountCreditedEvent APPENDED ############");
+    }
+
+    // ==========================================
+    // ACCOUNT UPDATE STATUS EVENT
+    // ==========================================
+
+    @EventSourcingHandler
+    public void on(AccountStatusUpdatedEvent event) {
+
+        log.info("############ AccountStatusUpdatedEvent OCCURRED ############");
+
+        this.accountId = event.getAccountId();
+        this.status = event.getStatus();
+
+        log.info("Account ID: {}", accountId);
+        log.info("New Status: {}", status);
     }
 }
