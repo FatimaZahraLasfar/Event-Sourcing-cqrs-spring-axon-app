@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.fzl.eventcqrsaxonapp.commands.enums.OperationType;
 
+import java.time.Instant;
 import java.util.Date;
 
 @Entity
@@ -11,7 +12,7 @@ import java.util.Date;
 public class AccountOperation {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private Date date;
+    private Instant date;
     private double amount;
     @Enumerated(EnumType.STRING)
     private OperationType type ;

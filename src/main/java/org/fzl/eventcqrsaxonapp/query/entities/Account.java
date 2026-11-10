@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import lombok.*;
 import org.fzl.eventcqrsaxonapp.commands.enums.AccountStatus;
 
+import java.time.Instant;
 import java.util.Date;
 @Entity
 @Getter
@@ -17,7 +18,7 @@ public class Account {
     @Id
     private String id;
     private double balance;
-    private Date createdAt;
+    private Instant createdAt;
     @Enumerated(EnumType.STRING)
     private AccountStatus status;
     private String currency;
