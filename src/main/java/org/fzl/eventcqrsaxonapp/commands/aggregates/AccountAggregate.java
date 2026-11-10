@@ -10,10 +10,12 @@ import org.axonframework.eventsourcing.annotation.reflection.EntityCreator;
 import org.axonframework.messaging.eventhandling.gateway.EventAppender;
 
 import org.fzl.eventcqrsaxonapp.commands.commands.AddAccountCommand;
+import org.fzl.eventcqrsaxonapp.commands.commands.CreditAccountCommand;
 import org.fzl.eventcqrsaxonapp.commands.enums.AccountStatus;
 import org.fzl.eventcqrsaxonapp.events.AccountCreatedEvent;
+import org.fzl.eventcqrsaxonapp.events.AccountCreditedEvent;
 
-@EventSourced
+@EventSourced(tagKey = "accountId")
 @Slf4j
 public class AccountAggregate {
     private String accountId;
@@ -74,4 +76,47 @@ public class AccountAggregate {
 
         log.info("AccountAggregate state UPDATED successfully");
     }
+
+    // Handle CreateAccountCommand
+    @CommandHandler
+    public void  handle(
+            CreditAccountCommand command,
+            EventAppender eventAppender) {
+
+        log.info("############ CreditAccountCommand RECEIVED ############");
+//        log.info("Account ID: {}", command.getId());
+//        log.info("Initial Balance: {}", command.getInitialBalance());
+//        log.info("Currency: {}", command.getCurrency());
+        if(!status.equals(AccountStatus.ACTIVATED)) throw new RuntimeException("The account "+command.getId() + " is not activated");
+        if (command.getAmount() <= 0) {
+            log.error("Account creation FAILED: Initial balance must be positive");
+            throw new IllegalArgumentException("Amount must be positive");
+        }
+
+        AccountCreditedEvent event = new AccountCreditedEvent(
+                command.getId(),
+                command.getAmount(),
+                command.getCurrency()
+        );
+
+        eventAppender.append(event);
+
+        log.info("############ AccountCreatedEvent APPENDED ############");
+    }
+
+    // Handle AccountCreditedEvent
+    @EventSourcingHandler
+    public void on(AccountCreditedEvent event) {
+
+        log.info("############ AccountCreditedEvent OCCURRED ############");
+        log.info("Account ID: {}", event.getAccountId());
+        log.info("Amount: {}", event.getAmount());
+        log.info("Currency: {}", event.getCurrency());
+
+        // Update aggregate state
+        this.accountId = event.getAccountId();
+        this.balance = this.balance + event.getAmount();
+        this.currency = event.getCurrency();
+    }
+
 }
