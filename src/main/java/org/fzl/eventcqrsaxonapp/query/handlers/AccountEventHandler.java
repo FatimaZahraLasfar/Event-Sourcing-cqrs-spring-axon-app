@@ -3,13 +3,19 @@ package org.fzl.eventcqrsaxonapp.query.handlers;
 import lombok.extern.slf4j.Slf4j;
 import org.axonframework.messaging.eventhandling.EventMessage;
 import org.axonframework.messaging.eventhandling.annotation.EventHandler;
+import org.axonframework.messaging.queryhandling.annotation.QueryHandler;
 import org.fzl.eventcqrsaxonapp.commands.enums.OperationType;
 import org.fzl.eventcqrsaxonapp.events.*;
+import org.fzl.eventcqrsaxonapp.query.dtos.AccountStatementResponseDTO;
 import org.fzl.eventcqrsaxonapp.query.entities.Account;
 import org.fzl.eventcqrsaxonapp.query.entities.AccountOperation;
+import org.fzl.eventcqrsaxonapp.query.queries.GetAccountStatementQuery;
 import org.fzl.eventcqrsaxonapp.query.repository.AccountRepository;
 import org.fzl.eventcqrsaxonapp.query.repository.OperationRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @Slf4j
@@ -76,5 +82,11 @@ public class AccountEventHandler {
         operationRepository.save(accountOperation);
         account.setBalance(account.getBalance()+accountOperation.getAmount());
         accountRepository.save(account);
+    }
+    @QueryHandler
+    public AccountStatementResponseDTO on (GetAccountStatementQuery query){
+        Account account = accountRepository.findById(query.getAccountId()).get();
+        List<AccountOperation> operations = operationRepository.findByAccountId(query.getAccountId());
+        return new AccountStatementResponseDTO(account,operations);
     }
 }
