@@ -724,6 +724,3 @@ Repository: [Event-Sourcing-cqrs-spring-axon-app](https://github.com/FatimaZahra
 
 ---
 
-## License
-
-Add a license file to the repository if you intend to distribute the project under an open-source license.
