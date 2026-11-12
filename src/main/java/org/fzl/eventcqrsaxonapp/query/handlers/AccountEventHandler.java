@@ -3,6 +3,7 @@ package org.fzl.eventcqrsaxonapp.query.handlers;
 import lombok.extern.slf4j.Slf4j;
 import org.axonframework.messaging.eventhandling.EventMessage;
 import org.axonframework.messaging.eventhandling.annotation.EventHandler;
+import org.axonframework.messaging.queryhandling.QueryUpdateEmitter;
 import org.axonframework.messaging.queryhandling.annotation.QueryHandler;
 import org.fzl.eventcqrsaxonapp.commands.enums.OperationType;
 import org.fzl.eventcqrsaxonapp.events.*;
@@ -10,9 +11,9 @@ import org.fzl.eventcqrsaxonapp.query.dtos.AccountStatementResponseDTO;
 import org.fzl.eventcqrsaxonapp.query.entities.Account;
 import org.fzl.eventcqrsaxonapp.query.entities.AccountOperation;
 import org.fzl.eventcqrsaxonapp.query.queries.GetAccountStatementQuery;
+import org.fzl.eventcqrsaxonapp.query.queries.WatchEventQuery;
 import org.fzl.eventcqrsaxonapp.query.repository.AccountRepository;
 import org.fzl.eventcqrsaxonapp.query.repository.OperationRepository;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,43 +21,49 @@ import java.util.List;
 @Component
 @Slf4j
 public class AccountEventHandler {
-    private AccountRepository accountRepository;
-    private OperationRepository operationRepository;
 
-    public AccountEventHandler (AccountRepository accountRepository, OperationRepository operationRepository){
+    private final AccountRepository accountRepository;
+    private final OperationRepository operationRepository;
+
+    public AccountEventHandler(AccountRepository accountRepository, OperationRepository operationRepository){
         this.accountRepository = accountRepository;
         this.operationRepository = operationRepository;
     }
+
     @EventHandler
-    public void on (AccountCreatedEvent event, EventMessage eventMessage){
+    public void on(AccountCreatedEvent event, EventMessage eventMessage){
         log.info("########## Query Side : AccountCreatedEvent Received ");
         Account account = Account.builder()
                 .id(event.getAccountId())
                 .balance(event.getInitialBalance())
                 .status(event.getStatus())
-                .currency((event.getCurrency()))
+                .currency(event.getCurrency())
                 .createdAt(eventMessage.timestamp())
                 .build();
         accountRepository.save(account);
-    };
+    }
+
     @EventHandler
-    public void on (AccountActivatedEvent event){
+    public void on(AccountActivatedEvent event){
         log.info("########## Query Side : AccountActivatedEvent Received ");
         Account account = accountRepository.findById(event.getAccountId()).get();
         account.setStatus(event.getStatus());
         accountRepository.save(account);
     }
+
     @EventHandler
-    public void on (AccountStatusUpdatedEvent event){
+    public void on(AccountStatusUpdatedEvent event){
         log.info("########## Query Side : AccountStatusUpdatedEvent Received ");
         Account account = accountRepository.findById(event.getAccountId()).get();
         account.setStatus(event.getStatus());
         accountRepository.save(account);
     }
+
     @EventHandler
-    public void on (AccountDebitedEvent event,EventMessage eventMessage){
+    public void on(AccountDebitedEvent event, EventMessage eventMessage, QueryUpdateEmitter queryUpdateEmitter){
         log.info("########## Query Side : AccountDebitedEvent Received ");
         Account account = accountRepository.findById(event.getAccountId()).get();
+
         AccountOperation accountOperation = AccountOperation.builder()
                 .amount(event.getAmount())
                 .date(eventMessage.timestamp())
@@ -64,14 +71,25 @@ public class AccountEventHandler {
                 .currency(event.getCurrency())
                 .account(account)
                 .build();
+
         operationRepository.save(accountOperation);
-        account.setBalance(account.getBalance()-accountOperation.getAmount());
+
+        account.setBalance(account.getBalance() - accountOperation.getAmount());
         accountRepository.save(account);
+
+        // Emit the update to subscribers of WatchEventQuery for this specific account
+        queryUpdateEmitter.emit(
+                WatchEventQuery.class,
+                query -> query.getAccountId().equals(event.getAccountId()),
+                accountOperation
+        );
     }
+
     @EventHandler
-    public void on (AccountCreditedEvent event, EventMessage eventMessage){
+    public void on(AccountCreditedEvent event, EventMessage eventMessage, QueryUpdateEmitter queryUpdateEmitter){
         log.info("########## Query Side : AccountCreditedEvent Received ");
         Account account = accountRepository.findById(event.getAccountId()).get();
+
         AccountOperation accountOperation = AccountOperation.builder()
                 .amount(event.getAmount())
                 .date(eventMessage.timestamp())
@@ -79,14 +97,25 @@ public class AccountEventHandler {
                 .currency(event.getCurrency())
                 .account(account)
                 .build();
+
         operationRepository.save(accountOperation);
-        account.setBalance(account.getBalance()+accountOperation.getAmount());
+
+        account.setBalance(account.getBalance() + accountOperation.getAmount());
         accountRepository.save(account);
+
+        // Emit the update to subscribers of WatchEventQuery for this specific account
+        queryUpdateEmitter.emit(
+                WatchEventQuery.class,
+                query -> query.getAccountId().equals(event.getAccountId()),
+                accountOperation
+        );
     }
+
     @QueryHandler
-    public AccountStatementResponseDTO on (GetAccountStatementQuery query){
+    public AccountStatementResponseDTO on(GetAccountStatementQuery query){
+        log.info("########## Query Side : GetAccountStatementQuery Received ");
         Account account = accountRepository.findById(query.getAccountId()).get();
         List<AccountOperation> operations = operationRepository.findByAccountId(query.getAccountId());
-        return new AccountStatementResponseDTO(account,operations);
+        return new AccountStatementResponseDTO(account, operations);
     }
 }

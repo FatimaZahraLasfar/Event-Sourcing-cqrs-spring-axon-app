@@ -2,7 +2,9 @@ package org.fzl.eventcqrsaxonapp.query.handlers;
 
 import org.axonframework.messaging.queryhandling.annotation.QueryHandler;
 import org.fzl.eventcqrsaxonapp.query.entities.Account;
+import org.fzl.eventcqrsaxonapp.query.entities.AccountOperation;
 import org.fzl.eventcqrsaxonapp.query.queries.GetAllAccountQuery;
+import org.fzl.eventcqrsaxonapp.query.queries.WatchEventQuery;
 import org.fzl.eventcqrsaxonapp.query.repository.AccountRepository;
 import org.fzl.eventcqrsaxonapp.query.repository.OperationRepository;
 import org.springframework.stereotype.Component;
@@ -21,5 +23,10 @@ public class AccountQueryHandler {
     @QueryHandler
     public List<Account> on(GetAllAccountQuery query){
         return accountRepository.findAll();
+    }
+    @QueryHandler
+    public AccountOperation on(WatchEventQuery query){
+        return AccountOperation.builder()
+                .build();
     }
 }

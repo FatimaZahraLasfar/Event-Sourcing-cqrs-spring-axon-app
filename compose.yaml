@@ -1,4 +1,11 @@
 services:
+  axonserver:
+    image: 'axoniq/axonserver:2026.0.2'
+    environment:
+      - 'AXONIQ_AXONSERVER_STANDALONE=TRUE'
+    ports:
+      - '8024:8024'
+      - '8124:8124'
   postgres:
     image: 'postgres:17'
     environment:
